@@ -9,12 +9,13 @@ services:
     ports:
       - 5432:5432
   app:
-    build: .
+    working_dir: "/go/src/app"
+    image: golang:1.13.3-alpine3.10
     command: ["go", "run", "main.go"]
     volumes:
       - .:/go/src/app
     ports:
-      - "80:8080"
+      - "8080:8080"
     depends_on:
       - db
     links:
