@@ -5,14 +5,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"log"
 	"net/http"
 	"projetgo/database"
 	"projetgo/entities"
 	"projetgo/security"
 )
 
-var headerTokenKey = "token"
 var tokenHashKey = "secret"
 
 func Login(c *gin.Context) {
@@ -36,10 +34,9 @@ func Login(c *gin.Context) {
 	}
 	jwtToken := jwt.NewWithClaims(jwt.GetSigningMethod("HS256"), token)
 	tokenString, _ := jwtToken.SignedString([]byte(tokenHashKey))
-	c.Header(headerTokenKey, tokenString)
 	c.JSON(http.StatusBadRequest, gin.H{
 		"message": "Login success",
-		"token":   tokenString,
+		"jwt":     tokenString,
 	})
 }
 
@@ -47,8 +44,7 @@ func Authenticate(c *gin.Context) {
 	if !isUriNeedAuthentication(c) {
 		return
 	}
-	tokenString := c.GetHeader(headerTokenKey)
-	token, _ := security.BindTokenFromClaim(tokenString)
+	token, _ := security.RetrieveTokenFromRequest(c)
 	user := entities.User{
 		Uuid:        token.ID,
 		Username:    token.Username,

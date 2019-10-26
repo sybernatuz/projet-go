@@ -3,8 +3,11 @@ package security
 import (
 	"errors"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+var headerTokenKey = "token"
 
 type Token struct {
 	ID          uuid.UUID
@@ -19,7 +22,8 @@ func (t Token) Valid() error {
 	return nil
 }
 
-func BindTokenFromClaim(tokenString string) (Token, error) {
+func RetrieveTokenFromRequest(c *gin.Context) (Token, error) {
+	tokenString := c.GetHeader(headerTokenKey)
 	token, _ := jwt.Parse(tokenString, nil)
 	if token == nil || token.Claims == nil {
 		return Token{}, errors.New("error while parsing token")
