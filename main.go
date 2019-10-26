@@ -17,21 +17,18 @@ func main() {
 		panic(database.Error)
 	}
 	database.DBCon.AutoMigrate(&entities.User{})
-	r := gin.Default()
-	r.NoRoute(func(context *gin.Context) {
+	controllers.Router = gin.Default()
+
+	controllers.Router.NoRoute(func(context *gin.Context) {
 		context.JSON(http.StatusNotFound, gin.H{
 			"message": "404",
 		})
 	})
-	r.GET("/", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"Routes": r.Routes(),
-		})
-	})
-	r.POST("/users/login", controllers.Login)
-	r.GET("/users/:uuid", controllers.GetUser)
-	r.GET("/users/", controllers.GetAllUsers)
-	r.POST("/users/", controllers.CreateUser)
-	r.DELETE("/users/:uuid", controllers.DeleteUser)
-	_ = r.Run()
+	controllers.Router.GET("/", controllers.Home)
+	controllers.Router.POST("/users/login", controllers.Login)
+	controllers.Router.GET("/users/:uuid", controllers.GetUser)
+	controllers.Router.GET("/users/", controllers.GetAllUsers)
+	controllers.Router.POST("/users/", controllers.CreateUser)
+	controllers.Router.DELETE("/users/:uuid", controllers.DeleteUser)
+	_ = controllers.Router.Run()
 }
