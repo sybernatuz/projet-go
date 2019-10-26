@@ -4,7 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
 	_ "github.com/lib/pq"
-	"net/http"
 	"projetgo/controllers"
 	"projetgo/database"
 	"projetgo/entities"
@@ -19,13 +18,10 @@ func main() {
 	database.DBCon.AutoMigrate(&entities.User{})
 	controllers.Router = gin.Default()
 
-	controllers.Router.NoRoute(func(context *gin.Context) {
-		context.JSON(http.StatusNotFound, gin.H{
-			"message": "404",
-		})
-	})
+	controllers.Router.Use(controllers.Authenticate)
+	controllers.Router.NoRoute(controllers.ErrorNotFound)
 	controllers.Router.GET("/", controllers.Home)
-	controllers.Router.POST("/users/login", controllers.Login)
+	controllers.Router.POST("/login", controllers.Login)
 	controllers.Router.GET("/users/:uuid", controllers.GetUser)
 	controllers.Router.GET("/users/", controllers.GetAllUsers)
 	controllers.Router.POST("/users/", controllers.CreateUser)
