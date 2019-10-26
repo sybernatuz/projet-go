@@ -21,13 +21,13 @@ func GetUser(c *gin.Context) {
 	user := entities.User{
 		Uuid: uid,
 	}
-	database.DBCon.Where(user).First(user)
+	database.DBCon.Where(&user).First(&user)
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
 func GetAllUsers(c *gin.Context) {
 	var users []entities.User
-	database.DBCon.Find(users)
+	database.DBCon.Find(&users)
 	c.JSON(http.StatusOK, gin.H{"users": users})
 }
 
