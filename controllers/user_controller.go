@@ -5,9 +5,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
-	"projetgo/database"
-	"projetgo/entities"
-	"strconv"
+	"projet-go/database"
+	"projet-go/entities"
 )
 
 func DeleteUser(c *gin.Context) {
@@ -32,21 +31,21 @@ func GetAllUsers(c *gin.Context) {
 }
 
 func CreateUser(c *gin.Context) {
-	postedPassword := []byte(c.PostForm("password"))
-	password, _ := bcrypt.GenerateFromPassword(postedPassword, bcrypt.DefaultCost)
-	accessLevel, _ := strconv.Atoi(c.PostForm("AccessLevel"))
-	user := entities.User{
-		Uuid:        uuid.New(),
-		Username:    c.PostForm("username"),
-		Password:    string(password),
-		FirstName:   c.PostForm("firstName"),
-		LastName:    c.PostForm("lastName"),
-		Email:       c.PostForm("email"),
-		BirthDate:   c.PostForm("birthDate"),
-		AccessLevel: accessLevel,
+	var user entities.User
+	err := c.BindJSON(&user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Bad request"})
+		return
 	}
+
+	user.Uuid = uuid.New()
+	password := []byte(user.Password)
+	passwordHashed, _ := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+	user.Password = string(passwordHashed)
+
 	userDb := database.DBCon.Create(&user)
-	c.JSON(http.StatusOK, gin.H{
+
+	c.JSON(http.StatusCreated, gin.H{
 		"message": "User created",
 		"user":    userDb,
 	})

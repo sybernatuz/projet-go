@@ -1,42 +1,56 @@
 package controllers
 
 import (
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
-	"projetgo/database"
-	"projetgo/entities"
-	"projetgo/security"
+	"projet-go/database"
+	"projet-go/entities"
+	"projet-go/security"
+	"regexp"
+	"time"
 )
 
-var tokenHashKey = "secret"
+type UserAuth struct {
+	Username string
+	Password string
+}
 
 func Login(c *gin.Context) {
-	username := c.PostForm("username")
-	password := c.PostForm("password")
-	user := &entities.User{
-		Username: username,
+	var userAuth UserAuth
+	err := c.BindJSON(&userAuth)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Bad request"})
+		return
 	}
+
+	user := &entities.User{
+		Username: userAuth.Username,
+	}
+
 	database.DBCon.Where(user).First(&user)
-	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(userAuth.Password))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "Invalid login",
 		})
 		return
 	}
-	token := security.Token{
-		ID:          user.Uuid,
-		AccessLevel: user.AccessLevel,
-		Username:    user.Username,
+
+	expiredAt := time.Now().Add(time.Hour * 1).Unix()
+	tokenString, err := security.JwtCreate(user.Uuid, user.AccessLevel, expiredAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Bad request",
+		})
+		return
 	}
-	jwtToken := jwt.NewWithClaims(jwt.GetSigningMethod("HS256"), token)
-	tokenString, _ := jwtToken.SignedString([]byte(tokenHashKey))
-	c.JSON(http.StatusBadRequest, gin.H{
-		"message": "Login success",
-		"jwt":     tokenString,
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "Login success",
+		"jwt":       tokenString,
+		"expiredAt": expiredAt,
 	})
 }
 
@@ -44,32 +58,29 @@ func Authenticate(c *gin.Context) {
 	if !isUriNeedAuthentication(c) {
 		return
 	}
-	token, _ := security.RetrieveTokenFromRequest(c)
-	user := entities.User{
-		Uuid:        token.ID,
-		Username:    token.Username,
-		AccessLevel: token.AccessLevel,
-	}
-	if isUserNotValid(user) {
+
+	tokenString, err := security.RetrieveTokenFromRequest(c)
+	if err != nil {
 		errorTokenInvalid(c)
 		return
 	}
-	isTokenNotValid := database.DBCon.Where(&user).First(&user).RecordNotFound()
-	if isTokenNotValid {
+
+	userAuth, err := security.UserInfosFromToken(tokenString)
+	if err != nil {
 		errorTokenInvalid(c)
 	}
+
+	c.Set("user", userAuth)
 }
 
 func isUriNeedAuthentication(c *gin.Context) bool {
 	uri := c.Request.RequestURI
-	return uri != "/login" &&
-		(uri != "/users/" || c.Request.Method == "post")
-}
 
-func isUserNotValid(user entities.User) bool {
-	return uuid.Nil == user.Uuid ||
-		user.AccessLevel == 0 ||
-		user.Username == ""
+	matchVotes, _ := regexp.MatchString("/votes/*", uri)
+	matchUsers, _ := regexp.MatchString("/users/*", uri)
+
+	return uri != "/login/" && ((matchUsers && c.Request.Method != "GET" && c.Request.Method != "POST") ||
+		(matchVotes && c.Request.Method != "GET"))
 }
 
 func errorTokenInvalid(c *gin.Context) {
