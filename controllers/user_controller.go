@@ -7,21 +7,31 @@ import (
 	"net/http"
 	"projet-go/database"
 	"projet-go/entities"
+	"projet-go/security"
+	"time"
 )
 
+type UserRequestParams struct {
+	FirstName   string `json:"first_name,omitempty"`
+	LastName    string `json:"last_name,omitempty"`
+	Email       string `json:"email,omitempty"`
+	Password    string `json:"pass,omitempty"`
+	DateOfBirth string `json:"birth_date,omitempty"`
+}
+
 func DeleteUser(c *gin.Context) {
-	id, _ := uuid.Parse(c.Param("id"))
-	database.DBCon.Delete(&entities.User{Uuid: id})
+	id, _ := uuid.Parse(c.Param("uuid"))
+	database.DBCon.Delete(&entities.User{UUID: id})
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted"})
 }
 
 func GetUser(c *gin.Context) {
-	uid, _ := uuid.Parse(c.Query("id"))
+	uid, _ := uuid.Parse(c.Param("uuid"))
 	user := entities.User{
-		Uuid: uid,
+		UUID: uid,
 	}
 	database.DBCon.Where(&user).First(&user)
-	c.JSON(http.StatusOK, gin.H{"user": user})
+	c.JSON(http.StatusOK, user)
 }
 
 func GetAllUsers(c *gin.Context) {
@@ -30,23 +40,78 @@ func GetAllUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"users": users})
 }
 
+func UpdateUser(c *gin.Context) {
+	userClaims := security.GetUserAuthFromContext(c)
+	if userClaims.AccessLevel != 1 {
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "Unauthorized"})
+		return
+	}
+	var requestParams UserRequestParams
+	err := c.ShouldBindJSON(&requestParams)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err})
+		return
+	}
+	uid, _ := uuid.Parse(c.Param("uuid"))
+	user := entities.User{
+		UUID: uid,
+	}
+	database.DBCon.Where(user).First(&user)
+	if requestParams.LastName != "" {
+		user.LastName = requestParams.LastName
+	}
+	if requestParams.FirstName != "" {
+		user.FirstName = requestParams.FirstName
+	}
+	if requestParams.Password != "" {
+		user.Password = requestParams.Password
+	}
+	if requestParams.Email != "" {
+		user.Email = requestParams.Email
+	}
+	if requestParams.DateOfBirth != "" {
+		date, err := time.Parse("02-01-2006", requestParams.DateOfBirth)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "Bad date"})
+			return
+		}
+		user.DateOfBirth = date
+	}
+	userDb := database.DBCon.Save(user)
+	c.JSON(http.StatusOK, userDb.Value)
+}
+
 func CreateUser(c *gin.Context) {
-	var user entities.User
-	err := c.BindJSON(&user)
+	var requestParams UserRequestParams
+	err := c.BindJSON(&requestParams)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Bad request"})
 		return
 	}
 
-	user.Uuid = uuid.New()
+	date, err := time.Parse("02-01-2006", requestParams.DateOfBirth)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Bad date"})
+		return
+	}
+	user := entities.User{
+		Email:       requestParams.Email,
+		Password:    requestParams.Password,
+		FirstName:   requestParams.FirstName,
+		LastName:    requestParams.LastName,
+		DateOfBirth: date,
+	}
+	user.UUID = uuid.New()
+	user.CreatedAt = time.Now()
 	password := []byte(user.Password)
 	passwordHashed, _ := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
 	user.Password = string(passwordHashed)
 
 	userDb := database.DBCon.Create(&user)
+	if userDb.Error != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Error while creating user"})
+		return
+	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "User created",
-		"user":    userDb,
-	})
+	c.JSON(http.StatusCreated, userDb.Value)
 }

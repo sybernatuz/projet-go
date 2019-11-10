@@ -18,6 +18,7 @@ func main() {
 
 	database.DBCon.AutoMigrate(&entities.User{})
 	database.DBCon.AutoMigrate(&entities.Vote{})
+	database.DBCon.AutoMigrate(&entities.Ip{})
 	controllers.Router = gin.Default()
 
 	controllers.Router.Use(controllers.Authenticate)
@@ -32,6 +33,7 @@ func main() {
 	controllers.Router.GET("/users/", controllers.GetAllUsers)
 	controllers.Router.POST("/users/", controllers.CreateUser)
 	controllers.Router.DELETE("/users/:uuid", controllers.DeleteUser)
+	controllers.Router.PUT("/users/:uuid", controllers.UpdateUser)
 
 	controllers.Router.POST("/votes/", controllers.CreateVote)
 	controllers.Router.GET("/votes/:uuid", controllers.GetVote)

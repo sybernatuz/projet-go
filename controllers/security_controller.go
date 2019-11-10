@@ -12,11 +12,19 @@ import (
 )
 
 type UserAuth struct {
-	Username string
-	Password string
+	Email    string `json:"login"`
+	Password string `json:"password"`
 }
 
 func Login(c *gin.Context) {
+	ip := entities.Ip{
+		Value: c.ClientIP(),
+	}
+	database.DBCon.Where(ip).First(&ip)
+	if ip.ID != 0 && ip.Attempt >= 3 {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Ban"})
+		return
+	}
 	var userAuth UserAuth
 	err := c.BindJSON(&userAuth)
 	if err != nil {
@@ -25,13 +33,20 @@ func Login(c *gin.Context) {
 	}
 
 	user := &entities.User{
-		Username: userAuth.Username,
+		Email: userAuth.Email,
 	}
 
 	database.DBCon.Where(user).First(&user)
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(userAuth.Password))
 	if err != nil {
+		if ip.ID == 0 {
+			ip.Attempt = 1
+			database.DBCon.Create(&ip)
+		} else if ip.Attempt < 3 {
+			ip.Attempt++
+			database.DBCon.Save(&ip)
+		}
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "Invalid login",
 		})
@@ -39,7 +54,7 @@ func Login(c *gin.Context) {
 	}
 
 	expiredAt := time.Now().Add(time.Hour * 1).Unix()
-	tokenString, err := security.JwtCreate(user.Uuid, user.AccessLevel, expiredAt)
+	tokenString, err := security.JwtCreate(user.UUID, user.AccessLevel, expiredAt)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "Bad request",
@@ -79,8 +94,9 @@ func isUriNeedAuthentication(c *gin.Context) bool {
 	matchVotes, _ := regexp.MatchString("/votes/*", uri)
 	matchUsers, _ := regexp.MatchString("/users/*", uri)
 
-	return uri != "/login/" && ((matchUsers && c.Request.Method != "GET" && c.Request.Method != "POST") ||
-		(matchVotes && c.Request.Method != "GET"))
+	return uri != "/login/" &&
+		((matchUsers && c.Request.Method != "GET" && c.Request.Method != "POST") ||
+			(matchVotes && c.Request.Method != "GET"))
 }
 
 func errorTokenInvalid(c *gin.Context) {
