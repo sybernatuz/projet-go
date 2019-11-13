@@ -56,7 +56,7 @@ func GetVote(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"uuid":        vote.UUID,
 			"title":       vote.Title,
-			"description": vote.Description,
+			"desc": 	   vote.Description,
 			"uuid_votes":  vote.UuidVotes,
 		})
 	}
@@ -93,7 +93,7 @@ func EditVote(c *gin.Context) {
 
 		vote.UpdatedAt = time.Now()
 
-		if err := database.DBCon.Model(&vote).Updates(voteEdit).Error; err != nil {
+		if err := database.DBCon.Model(&vote).UpdateColumns(voteEdit).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal error"})
 		} else {
 			c.JSON(http.StatusOK, vote)
