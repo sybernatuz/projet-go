@@ -9,6 +9,7 @@ import (
 	"projet-go/entities"
 	"projet-go/security"
 	"time"
+	"github.com/thedevsaddam/govalidator"
 )
 
 type UserRequestParams struct {
@@ -83,6 +84,22 @@ func UpdateUser(c *gin.Context) {
 
 func CreateUser(c *gin.Context) {
 	var requestParams UserRequestParams
+	rules := govalidator.MapData{
+		"first_name": 	   []string{"required", "min:2"},
+		"last_name": 	   []string{"required", "min:2"},
+		"email":    	   []string{"required", "email"},
+		"birth_date":      []string{"url"},
+	}
+
+	opts := govalidator.Options{
+		Request: c.Request,
+		Data:    &UserRequestParams,
+		Rules:   rules,
+	}
+
+	v := govalidator.New(opts)
+	e := v.ValidateJSON()
+
 	err := c.BindJSON(&requestParams)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Bad request"})
